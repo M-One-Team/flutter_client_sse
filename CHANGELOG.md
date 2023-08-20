@@ -27,3 +27,7 @@
 
 * Added ability to send custom headers
 * Added error handling
+## [1.0.1] - Custom header and error handling
+
+* Updated dependencies
+* Added analyses

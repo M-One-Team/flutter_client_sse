@@ -2,40 +2,47 @@ library flutter_client_sse;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer';
 import 'package:http/http.dart' as http;
+
 part 'sse_event_model.dart';
 
 class SSEClient {
-  static http.Client _client = new http.Client();
+  static http.Client _client = http.Client();
 
   ///def: Subscribes to SSE
   ///param:
   ///[url]->URl of the SSE api
   ///[header]->Map<String,String>, key value pair of the request header
-  static Stream<SSEModel> subscribeToSSE(
-      {required String url, required Map<String, String> header}) {
-    var lineRegex = RegExp(r'^([^:]*)(?::)?(?: )?(.*)?$');
+  static Stream<SSEModel> subscribeToSSE({
+    required String url,
+    required Map<String, String> header,
+  }) {
+    final lineRegex = RegExp(r'^([^:]*)(?::)?(?: )?(.*)?$');
     var currentSSEModel = SSEModel(data: '', id: '', event: '');
     // ignore: close_sinks
-    StreamController<SSEModel> streamController = new StreamController();
-    print("--SUBSCRIBING TO SSE---");
+    final streamController = StreamController<SSEModel>();
+    log('--SUBSCRIBING TO SSE---');
     while (true) {
       try {
         _client = http.Client();
-        var request = new http.Request("GET", Uri.parse(url));
+        final request = http.Request('GET', Uri.parse(url));
 
         ///Adding headers to the request
         header.forEach((key, value) {
           request.headers[key] = value;
         });
 
-        Future<http.StreamedResponse> response = _client.send(request);
+        final response = _client.send(request);
 
         ///Listening to the response as a stream
-        response.asStream().listen((data) {
-          ///Applying transforms and listening to it
-          data.stream
-            ..transform(Utf8Decoder()).transform(LineSplitter()).listen(
+        response.asStream().listen(
+          (data) {
+            ///Applying transforms and listening to it
+            data.stream
+                .transform(const Utf8Decoder())
+                .transform(const LineSplitter())
+                .listen(
               (dataLine) {
                 if (dataLine.isEmpty) {
                   ///This means that the complete event set has been read.
@@ -46,8 +53,8 @@ class SSEClient {
                 }
 
                 ///Get the match of each line through the regex
-                Match match = lineRegex.firstMatch(dataLine)!;
-                var field = match.group(1);
+                final Match match = lineRegex.firstMatch(dataLine)!;
+                final field = match.group(1);
                 if (field!.isEmpty) {
                   return;
                 }
@@ -63,36 +70,35 @@ class SSEClient {
                 switch (field) {
                   case 'event':
                     currentSSEModel.event = value;
-                    break;
                   case 'data':
                     currentSSEModel.data =
-                        (currentSSEModel.data ?? '') + value + '\n';
-                    break;
+                        '${currentSSEModel.data ?? ''}$value\n';
                   case 'id':
                     currentSSEModel.id = value;
-                    break;
                   case 'retry':
                     break;
                 }
               },
               onError: (e, s) {
-                print('---ERROR---');
-                print(e);
+                log('---ERROR---');
+                log(e);
                 streamController.addError(e, s);
               },
             );
-        }, onError: (e, s) {
-          print('---ERROR---');
-          print(e);
-          streamController.addError(e, s);
-        });
+          },
+          onError: (e, s) {
+            log('---ERROR---');
+            log(e);
+            streamController.addError(e, s);
+          },
+        );
       } catch (e, s) {
-        print('---ERROR---');
-        print(e);
+        log('---ERROR---');
+        log(e.toString());
         streamController.addError(e, s);
       }
 
-      Future.delayed(Duration(seconds: 1), () {});
+      Future.delayed(const Duration(seconds: 1), () {});
       return streamController.stream;
     }
   }
